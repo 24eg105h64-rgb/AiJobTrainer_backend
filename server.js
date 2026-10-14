@@ -9,6 +9,14 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...(process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
 
 if (!JWT_SECRET || Buffer.byteLength(JWT_SECRET, 'utf8') < 32) {
   throw new Error('JWT_SECRET must be set to at least 32 bytes.');
@@ -16,7 +24,7 @@ if (!JWT_SECRET || Buffer.byteLength(JWT_SECRET, 'utf8') < 32) {
 
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
     credentials: true,
   }),
 );

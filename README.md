@@ -22,3 +22,7 @@ npm run start
 ```
 
 The Express API listens on port `5000` by default. Never commit `.env`, dependency directories, or Maven build output.
+
+## Render configuration
+
+For the Express web service, configure `JWT_SECRET` (at least 32 bytes), `MONGODB_URI`, and `FRONTEND_URL` in Render's environment settings. `FRONTEND_URL` must be the deployed frontend origin, without a path; multiple origins can be comma-separated. Configure the frontend Render service's `VITE_API_BASE_URL` to this backend service URL ending in `/api`, then redeploy both services.
