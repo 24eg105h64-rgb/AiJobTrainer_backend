@@ -25,4 +25,4 @@ The Express API listens on port `5000` by default. Never commit `.env`, dependen
 
 ## Render configuration
 
-For the Express web service, configure `JWT_SECRET` (at least 32 bytes), `MONGODB_URI`, and `FRONTEND_URL` in Render's environment settings. `FRONTEND_URL` must be the deployed frontend origin, without a path; multiple origins can be comma-separated. Configure the frontend Render service's `VITE_API_BASE_URL` to this backend service URL ending in `/api`, then redeploy both services.
+Configure `JWT_SECRET` (at least 32 bytes), `MONGODB_URI`, `FRONTEND_URL`, and `BACKEND_URL` in the backend service's environment settings. `FRONTEND_URL` must contain allowed frontend origins, including scheme and without paths; multiple origins can be comma-separated. Configure the frontend service's `VITE_BACKEND_URL` to the backend origin, including scheme and without a trailing slash, then redeploy both services.

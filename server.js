@@ -9,9 +9,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const BACKEND_URL = process.env.BACKEND_URL;
 const allowedOrigins = new Set([
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
   ...(process.env.FRONTEND_URL || '')
     .split(',')
     .map((origin) => origin.trim())
@@ -689,19 +688,19 @@ app.get('/api/admin/statistics', auth, adminOnly, async (req, res) => {
 });
 
 mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/AIJobTrainer')
+  .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log('MongoDB connected successfully!');
     await seedAdmin();
     await seedQuestions();
     app.listen(PORT, () => {
-      console.log(`Backend running on http://localhost:${PORT}`);
+      console.log(BACKEND_URL ? `Backend running at ${BACKEND_URL}` : `Backend listening on port ${PORT}`);
     });
   })
   .catch((error) => {
     console.error('MongoDB connection failed:', error.message);
     app.listen(PORT, () => {
-      console.log(`Backend running in fallback mode on http://localhost:${PORT}`);
+      console.log(BACKEND_URL ? `Backend running in fallback mode at ${BACKEND_URL}` : `Backend in fallback mode on port ${PORT}`);
     });
   });
 
