@@ -1,24 +1,35 @@
 package com.aijobtrainer.model;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-@Document(collection = "interviews")
+@Entity
+@Table(name = "spring_interviews")
 public class Interview {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String userId;
     private String interviewType; // HR, TECHNICAL, BEHAVIORAL, CODING, MIXED
     private String difficulty;    // BEGINNER, INTERMEDIATE, ADVANCED
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<InterviewQuestionItem> questions = new ArrayList<>();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> answers = new ArrayList<>();
 
     private int score;
@@ -28,13 +39,18 @@ public class Interview {
     private int relevanceScore;
     private int problemSolvingScore;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> strengths = new ArrayList<>();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> weaknesses = new ArrayList<>();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> suggestions = new ArrayList<>();
 
     private String status = "completed";
 
-    @CreatedDate
     private Instant createdAt = Instant.now();
 
     public Interview() {

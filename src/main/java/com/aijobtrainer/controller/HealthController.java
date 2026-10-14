@@ -15,7 +15,7 @@ public class HealthController {
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of(
                 "status", "ok",
-                "message", "AI Job Trainer Spring Boot + MongoDB API is running."
+                "message", "AI Job Trainer Spring Boot + MySQL API is running."
         ));
     }
 }

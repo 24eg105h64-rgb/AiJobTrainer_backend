@@ -1,9 +1,13 @@
 package com.aijobtrainer.model;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,13 +15,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Document(collection = "progress")
+@Entity
+@Table(name = "spring_progress")
 public class Progress {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Indexed(unique = true)
+    @Column(unique = true)
     private String userId;
 
     private int interviewsCompleted;
@@ -26,10 +32,13 @@ public class Progress {
     private int codingProblemsSolved;
     private int currentStreak;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private Map<String, Integer> skills = new HashMap<>();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<Integer> weeklyActivity = new ArrayList<>();
 
-    @LastModifiedDate
     private Instant updatedAt = Instant.now();
 
     public Progress() {

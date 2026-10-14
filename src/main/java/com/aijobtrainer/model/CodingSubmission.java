@@ -1,15 +1,19 @@
 package com.aijobtrainer.model;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-@Document(collection = "codingSubmissions")
+@Entity
+@Table(name = "spring_coding_submissions")
 public class CodingSubmission {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String userId;
@@ -21,7 +25,6 @@ public class CodingSubmission {
     private int score;
     private String executionTime;
 
-    @CreatedDate
     private Instant createdAt = Instant.now();
 
     public CodingSubmission() {

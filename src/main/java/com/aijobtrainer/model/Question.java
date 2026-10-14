@@ -1,17 +1,24 @@
 package com.aijobtrainer.model;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-@Document(collection = "questions")
+@Entity
+@Table(name = "spring_questions")
 public class Question {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String title;
@@ -22,12 +29,15 @@ public class Question {
     private String type;
     private String input;
     private String output;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> examples = new ArrayList<>();
     private String constraints;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> tags = new ArrayList<>();
     private String answer;
 
-    @CreatedDate
     private Instant createdAt = Instant.now();
 
     public Question() {

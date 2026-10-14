@@ -1,14 +1,19 @@
 package com.aijobtrainer.model;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Document(collection = "codingProblems")
+@Entity
+@Table(name = "spring_coding_problems")
 public class CodingProblem {
 
     @Id
@@ -20,9 +25,15 @@ public class CodingProblem {
     private String difficulty; // EASY, MEDIUM, HARD
     private String input;
     private String output;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> examples = new ArrayList<>();
     private String constraints;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> tags = new ArrayList<>();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private Map<String, String> starterTemplates = new HashMap<>();
 
     public CodingProblem() {

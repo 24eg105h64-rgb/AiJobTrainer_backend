@@ -5,59 +5,38 @@ import com.aijobtrainer.exception.ResourceNotFoundException;
 import com.aijobtrainer.model.Question;
 import com.aijobtrainer.repository.QuestionRepository;
 import com.aijobtrainer.service.QuestionService;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class QuestionServiceImpl implements QuestionService {
 
     private final QuestionRepository questionRepository;
-    private final MongoTemplate mongoTemplate;
-
-    public QuestionServiceImpl(QuestionRepository questionRepository, MongoTemplate mongoTemplate) {
+    public QuestionServiceImpl(QuestionRepository questionRepository) {
         this.questionRepository = questionRepository;
-        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
     public List<Question> getQuestions(String type, String category, String difficulty, String search) {
-        Query query = new Query();
-        List<Criteria> criteriaList = new ArrayList<>();
+        String normalizedType = type == null ? "" : type.trim();
+        String normalizedCategory = category == null ? "" : category.trim();
+        String normalizedDifficulty = difficulty == null ? "" : difficulty.trim();
+        String normalizedSearch = search == null ? "" : search.trim().toLowerCase();
 
-        if (type != null && !type.isBlank() && !type.equalsIgnoreCase("All")) {
-            criteriaList.add(new Criteria().orOperator(
-                    Criteria.where("type").regex("^" + type + "$", "i"),
-                    Criteria.where("category").regex("^" + type + "$", "i")
-            ));
-        }
-
-        if (category != null && !category.isBlank() && !category.equalsIgnoreCase("All")) {
-            criteriaList.add(Criteria.where("category").regex("^" + category + "$", "i"));
-        }
-
-        if (difficulty != null && !difficulty.isBlank() && !difficulty.equalsIgnoreCase("All")) {
-            criteriaList.add(Criteria.where("difficulty").regex("^" + difficulty + "$", "i"));
-        }
-
-        if (search != null && !search.isBlank()) {
-            criteriaList.add(new Criteria().orOperator(
-                    Criteria.where("title").regex(search, "i"),
-                    Criteria.where("question").regex(search, "i"),
-                    Criteria.where("description").regex(search, "i")
-            ));
-        }
-
-        if (!criteriaList.isEmpty()) {
-            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
-        }
-
-        return mongoTemplate.find(query, Question.class);
+        return questionRepository.findAll().stream()
+            .filter(question -> normalizedType.isEmpty() || normalizedType.equalsIgnoreCase("All")
+                || normalizedType.equalsIgnoreCase(question.getType())
+                || normalizedType.equalsIgnoreCase(question.getCategory()))
+            .filter(question -> normalizedCategory.isEmpty() || normalizedCategory.equalsIgnoreCase("All")
+                || normalizedCategory.equalsIgnoreCase(question.getCategory()))
+            .filter(question -> normalizedDifficulty.isEmpty() || normalizedDifficulty.equalsIgnoreCase("All")
+                || normalizedDifficulty.equalsIgnoreCase(question.getDifficulty()))
+            .filter(question -> normalizedSearch.isEmpty()
+                || String.join(" ", question.getTitle(), question.getQuestion(), question.getDescription() == null ? "" : question.getDescription())
+                    .toLowerCase().contains(normalizedSearch))
+            .toList();
     }
 
     @Override

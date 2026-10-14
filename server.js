@@ -1,10 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+const db = require('./mysql-database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,125 +28,6 @@ app.use(
   }),
 );
 app.use(express.json({ limit: '10mb' }));
-
-const userSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, minlength: 6 },
-    college: { type: String, default: '' },
-    degree: { type: String, default: '' },
-    branch: { type: String, default: '' },
-    graduationYear: { type: Number, default: new Date().getFullYear() },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
-    skills: { type: [String], default: [] },
-    profileImage: { type: String, default: '' },
-  },
-  { timestamps: true },
-);
-
-const interviewSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    type: { type: String, required: true },
-    difficulty: { type: String, required: true },
-    questions: [
-      {
-        text: { type: String, required: true },
-        answer: { type: String, default: '' },
-      },
-    ],
-    score: { type: Number, default: 0 },
-    feedback: {
-      overall: { type: Number, default: 0 },
-      communication: { type: Number, default: 0 },
-      technical: { type: Number, default: 0 },
-      confidence: { type: Number, default: 0 },
-      problemSolving: { type: Number, default: 0 },
-      strengths: [String],
-      weaknesses: [String],
-      suggestions: [String],
-    },
-    status: { type: String, default: 'completed' },
-  },
-  { timestamps: true },
-);
-
-const questionSchema = new mongoose.Schema(
-  {
-    question: { type: String, required: true },
-    type: { type: String, enum: ['Technical', 'HR', 'Behavioral', 'DSA', 'SQL', 'Aptitude'], default: 'Technical' },
-    category: { type: String, default: 'General' },
-    difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Medium' },
-    answer: { type: String, default: '' },
-  },
-  { timestamps: true },
-);
-
-const resumeAnalysisSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    score: { type: Number, default: 0 },
-    jobTitle: { type: String, default: '' },
-    summary: { type: String, default: '' },
-    strengths: [String],
-    weaknesses: [String],
-    suggestions: [String],
-    categories: {
-      skills: { type: Number, default: 0 },
-      education: { type: Number, default: 0 },
-      projects: { type: Number, default: 0 },
-      experience: { type: Number, default: 0 },
-      formatting: { type: Number, default: 0 },
-      keywords: { type: Number, default: 0 },
-    },
-  },
-  { timestamps: true },
-);
-
-const codingSubmissionSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    problemId: { type: String, required: true },
-    title: { type: String, required: true },
-    language: { type: String, default: 'JavaScript' },
-    difficulty: { type: String, default: 'Medium' },
-    code: { type: String, default: '' },
-    attempted: { type: Boolean, default: true },
-    solved: { type: Boolean, default: false },
-    score: { type: Number, default: 0 },
-  },
-  { timestamps: true },
-);
-
-const progressSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    interviewScores: { type: [Number], default: [] },
-    resumeScore: { type: Number, default: 0 },
-    codingSolved: { type: Number, default: 0 },
-    streak: { type: Number, default: 0 },
-    skillProgress: { type: Object, default: {} },
-    weeklyActivity: { type: [Number], default: [0, 0, 0, 0, 0, 0, 0] },
-  },
-  { timestamps: true },
-);
-
-userSchema.pre('save', async function save() {
-  if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, 10);
-});
-
-userSchema.methods.comparePassword = async function comparePassword(candidate) {
-  return bcrypt.compare(candidate, this.password);
-};
-
-const User = mongoose.model('User', userSchema);
-const Interview = mongoose.model('Interview', interviewSchema);
-const Question = mongoose.model('Question', questionSchema);
-const ResumeAnalysis = mongoose.model('ResumeAnalysis', resumeAnalysisSchema);
-const CodingSubmission = mongoose.model('CodingSubmission', codingSubmissionSchema);
-const Progress = mongoose.model('Progress', progressSchema);
 
 const codingProblems = [
   {
@@ -206,7 +87,7 @@ const auth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await db.findUserById(decoded.id);
 
     if (!user) {
       return res.status(401).json({ message: 'User not found.' });
@@ -227,9 +108,11 @@ const adminOnly = (req, res, next) => {
 };
 
 const buildProgress = async (userId) => {
-  const interviews = await Interview.find({ user: userId }).sort({ createdAt: -1 });
-  const analyses = await ResumeAnalysis.find({ user: userId }).sort({ createdAt: -1 });
-  const submissions = await CodingSubmission.find({ user: userId, solved: true });
+  const [interviews, analyses, codingSolved] = await Promise.all([
+    db.findInterviewsByUser(userId),
+    db.findResumeAnalysesByUser(userId),
+    db.countSolvedSubmissions(userId),
+  ]);
 
   const interviewScores = interviews.map((item) => item.score || 0);
   const averageInterviewScore = interviewScores.length
@@ -237,8 +120,6 @@ const buildProgress = async (userId) => {
     : 0;
 
   const lastResume = analyses[0]?.score || 0;
-  const codingSolved = submissions.length;
-
   return {
     interviewsCompleted: interviews.length,
     averageInterviewScore,
@@ -305,12 +186,12 @@ const seedAdmin = async () => {
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminEmail || !adminPassword) return;
 
-  const exists = await User.findOne({ email: adminEmail });
+  const exists = await db.findUserByEmail(adminEmail);
   if (!exists) {
-    await User.create({
+    await db.createUser({
       name: 'Admin User',
       email: adminEmail,
-      password: adminPassword,
+      password: await bcrypt.hash(adminPassword, 10),
       college: 'AI University',
       degree: 'B.Tech',
       branch: 'Computer Science',
@@ -322,10 +203,7 @@ const seedAdmin = async () => {
 };
 
 const seedQuestions = async () => {
-  const count = await Question.countDocuments();
-  if (count > 0) return;
-
-  await Question.insertMany([
+  await db.seedQuestions([
     { question: 'What is the difference between let and var in JavaScript?', type: 'Technical', category: 'JavaScript', difficulty: 'Easy', answer: 'let has block scope while var has function scope.' },
     { question: 'What is a REST API?', type: 'Technical', category: 'Web Development', difficulty: 'Medium', answer: 'REST stands for Representational State Transfer and uses HTTP methods to exchange resources.' },
     { question: 'Explain the STAR method.', type: 'HR', category: 'Interview', difficulty: 'Easy', answer: 'Situation, Task, Action, Result describes a structured interview answer.' },
@@ -352,15 +230,15 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ message: 'Passwords do not match.' });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await db.findUserByEmail(email);
     if (existing) {
       return res.status(400).json({ message: 'This email is already registered.' });
     }
 
-    const user = await User.create({
+    const user = await db.createUser({
       name,
-      email: email.toLowerCase(),
-      password,
+      email,
+      password: await bcrypt.hash(password, 10),
       college,
       degree,
       branch,
@@ -385,12 +263,12 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await db.findUserByEmail(email);
     if (!user) {
       return res.status(400).json({ message: 'Invalid email or password.' });
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid email or password.' });
     }
@@ -409,7 +287,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
 });
 
 app.get('/api/users/profile', auth, async (req, res) => {
-  const user = await User.findById(req.user._id).select('-password');
+  const user = await db.findUserById(req.user._id);
   res.json({ user });
 });
 
@@ -421,7 +299,7 @@ app.put('/api/users/profile', auth, async (req, res) => {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   });
 
-  const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-password');
+  const user = await db.updateUser(req.user._id, updates);
   res.json({ message: 'Profile updated successfully.', user });
 });
 
@@ -431,23 +309,18 @@ app.put('/api/users/password', auth, async (req, res) => {
     return res.status(400).json({ message: 'Current password and new password are required.' });
   }
 
-  const user = await User.findById(req.user._id);
-  const isMatch = await user.comparePassword(currentPassword);
+  const user = await db.findUserById(req.user._id, true);
+  const isMatch = user && await bcrypt.compare(currentPassword, user.password);
   if (!isMatch) {
     return res.status(400).json({ message: 'Current password is incorrect.' });
   }
 
-  user.password = newPassword;
-  await user.save();
+  await db.setUserPassword(req.user._id, await bcrypt.hash(newPassword, 10));
   res.json({ message: 'Password updated successfully.' });
 });
 
 app.delete('/api/users/account', auth, async (req, res) => {
-  await User.findByIdAndDelete(req.user._id);
-  await Interview.deleteMany({ user: req.user._id });
-  await ResumeAnalysis.deleteMany({ user: req.user._id });
-  await CodingSubmission.deleteMany({ user: req.user._id });
-  await Progress.deleteMany({ user: req.user._id });
+  await db.deleteUser(req.user._id);
   res.json({ message: 'Account deleted successfully.' });
 });
 
@@ -470,7 +343,7 @@ app.post('/api/interviews', auth, async (req, res) => {
     const score = Math.max(55, Math.min(98, 60 + entries.filter((entry) => entry.answer && entry.answer.length > 20).length * 8));
     const feedback = mockInterviewFeedback(score, type, difficulty);
 
-    const interview = await Interview.create({
+    const interview = await db.createInterview({
       user: req.user._id,
       type,
       difficulty,
@@ -480,21 +353,12 @@ app.post('/api/interviews', auth, async (req, res) => {
       status: 'completed',
     });
 
-    const progress = await Progress.findOne({ user: req.user._id });
-    if (progress) {
-      progress.interviewScores.push(score);
-      await progress.save();
-    } else {
-      await Progress.create({
-        user: req.user._id,
-        interviewScores: [score],
-        resumeScore: 0,
-        codingSolved: 0,
-        streak: 1,
-        skillProgress: {},
-        weeklyActivity: [0, 0, 0, 0, 0, 0, 0],
-      });
-    }
+    const progress = await db.getProgress(req.user._id);
+    await db.saveProgress(req.user._id, {
+      ...progress,
+      interviewScores: [...(progress?.interviewScores || []), score],
+      streak: progress?.streak || 1,
+    });
 
     res.status(201).json({ message: 'Interview submitted successfully.', interview });
   } catch (error) {
@@ -503,12 +367,12 @@ app.post('/api/interviews', auth, async (req, res) => {
 });
 
 app.get('/api/interviews', auth, async (req, res) => {
-  const interviews = await Interview.find({ user: req.user._id }).sort({ createdAt: -1 });
+  const interviews = await db.findInterviewsByUser(req.user._id);
   res.json({ interviews });
 });
 
 app.get('/api/interviews/:id', auth, async (req, res) => {
-  const interview = await Interview.findOne({ _id: req.params.id, user: req.user._id });
+  const interview = await db.findInterviewByIdForUser(req.params.id, req.user._id);
   if (!interview) {
     return res.status(404).json({ message: 'Interview not found.' });
   }
@@ -516,7 +380,7 @@ app.get('/api/interviews/:id', auth, async (req, res) => {
 });
 
 app.delete('/api/interviews/:id', auth, async (req, res) => {
-  const interview = await Interview.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+  const interview = await db.deleteInterview(req.params.id, req.user._id);
   if (!interview) {
     return res.status(404).json({ message: 'Interview not found.' });
   }
@@ -527,7 +391,7 @@ app.post('/api/resume/analyze', auth, async (req, res) => {
   try {
     const { summary = '', jobTitle = '', skills = [] } = req.body;
     const analysis = generateResumeAnalysis(summary, jobTitle, skills);
-    const created = await ResumeAnalysis.create({
+    const created = await db.createResumeAnalysis({
       user: req.user._id,
       score: analysis.score,
       jobTitle,
@@ -538,10 +402,9 @@ app.post('/api/resume/analyze', auth, async (req, res) => {
       categories: analysis.categories,
     });
 
-    const progress = await Progress.findOne({ user: req.user._id });
+    const progress = await db.getProgress(req.user._id);
     if (progress) {
-      progress.resumeScore = analysis.score;
-      await progress.save();
+      await db.saveProgress(req.user._id, { ...progress, resumeScore: analysis.score });
     }
 
     res.status(201).json({ message: 'Resume analyzed successfully.', analysis: created });
@@ -551,24 +414,17 @@ app.post('/api/resume/analyze', auth, async (req, res) => {
 });
 
 app.get('/api/resume/history', auth, async (req, res) => {
-  const analyses = await ResumeAnalysis.find({ user: req.user._id }).sort({ createdAt: -1 });
+  const analyses = await db.findResumeAnalysesByUser(req.user._id);
   res.json({ analyses });
 });
 
 app.get('/api/questions', async (req, res) => {
-  const { type, difficulty, search } = req.query;
-  const filter = {};
-
-  if (type && type !== 'All') filter.type = type;
-  if (difficulty && difficulty !== 'All') filter.difficulty = difficulty;
-  if (search) filter.question = { $regex: search, $options: 'i' };
-
-  const questions = await Question.find(filter).sort({ createdAt: -1 });
+  const questions = await db.findQuestions(req.query);
   res.json({ questions });
 });
 
 app.get('/api/questions/:id', async (req, res) => {
-  const question = await Question.findById(req.params.id);
+  const question = await db.findQuestionById(req.params.id);
   if (!question) {
     return res.status(404).json({ message: 'Question not found.' });
   }
@@ -581,17 +437,13 @@ app.post('/api/questions', auth, adminOnly, async (req, res) => {
     return res.status(400).json({ message: 'Question text is required.' });
   }
 
-  const created = await Question.create({ question, type, category, difficulty, answer });
+  const created = await db.createQuestion({ question, type, category, difficulty, answer });
   res.status(201).json({ message: 'Question created.', question: created });
 });
 
 app.put('/api/questions/:id', auth, adminOnly, async (req, res) => {
   const { question, type, category, difficulty, answer } = req.body;
-  const updated = await Question.findByIdAndUpdate(
-    req.params.id,
-    { question, type, category, difficulty, answer },
-    { new: true },
-  );
+  const updated = await db.updateQuestion(req.params.id, { question, type, category, difficulty, answer });
 
   if (!updated) {
     return res.status(404).json({ message: 'Question not found.' });
@@ -601,7 +453,7 @@ app.put('/api/questions/:id', auth, adminOnly, async (req, res) => {
 });
 
 app.delete('/api/questions/:id', auth, adminOnly, async (req, res) => {
-  const deleted = await Question.findByIdAndDelete(req.params.id);
+  const deleted = await db.deleteQuestion(req.params.id);
   if (!deleted) {
     return res.status(404).json({ message: 'Question not found.' });
   }
@@ -617,7 +469,7 @@ app.post('/api/coding/submit', auth, async (req, res) => {
   const problem = codingProblems.find((item) => item._id === problemId) || codingProblems[0];
 
   const score = solved ? 92 : 68;
-  const submission = await CodingSubmission.create({
+  const submission = await db.createCodingSubmission({
     user: req.user._id,
     problemId: problem._id,
     title: problem.title,
@@ -629,10 +481,12 @@ app.post('/api/coding/submit', auth, async (req, res) => {
     score,
   });
 
-  const progress = await Progress.findOne({ user: req.user._id });
+  const progress = await db.getProgress(req.user._id);
   if (progress) {
-    progress.codingSolved = (progress.codingSolved || 0) + (solved ? 1 : 0);
-    await progress.save();
+    await db.saveProgress(req.user._id, {
+      ...progress,
+      codingSolved: (progress.codingSolved || 0) + (solved ? 1 : 0),
+    });
   }
 
   res.status(201).json({ message: 'Coding submission recorded.', submission, result: { score, solved } });
@@ -644,7 +498,7 @@ app.get('/api/progress', auth, async (req, res) => {
 });
 
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
-  const users = await User.find().select('-password').sort({ createdAt: -1 });
+  const users = await db.listUsers();
   res.json({ users });
 });
 
@@ -654,7 +508,7 @@ app.put('/api/admin/users/:id/role', auth, adminOnly, async (req, res) => {
     return res.status(400).json({ message: 'Role must be user or admin.' });
   }
 
-  const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
+  const user = await db.updateUser(req.params.id, { role });
   if (!user) {
     return res.status(404).json({ message: 'User not found.' });
   }
@@ -663,7 +517,7 @@ app.put('/api/admin/users/:id/role', auth, adminOnly, async (req, res) => {
 });
 
 app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
-  const user = await User.findByIdAndDelete(req.params.id);
+  const user = await db.deleteUser(req.params.id);
   if (!user) {
     return res.status(404).json({ message: 'User not found.' });
   }
@@ -671,26 +525,27 @@ app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
 });
 
 app.get('/api/admin/statistics', auth, adminOnly, async (req, res) => {
-  const totalUsers = await User.countDocuments();
-  const totalQuestions = await Question.countDocuments();
-  const totalInterviews = await Interview.countDocuments();
-  const averageScore = await Interview.aggregate([{ $group: { _id: null, avg: { $avg: '$score' } } }]);
+  const [totalUsers, totalQuestions, totalInterviews, averageScore] = await Promise.all([
+    db.count('users'),
+    db.count('questions'),
+    db.count('interviews'),
+    db.averageInterviewScore(),
+  ]);
 
   res.json({
     stats: {
       totalUsers,
       totalQuestions,
       totalInterviews,
-      averageScore: averageScore[0]?.avg ? Math.round(averageScore[0].avg) : 0,
+      averageScore: averageScore ? Math.round(averageScore) : 0,
       activeUsers: totalUsers,
     },
   });
 });
 
-mongoose
-  .connect(process.env.MONGODB_URI)
+db.initializeDatabase()
   .then(async () => {
-    console.log('MongoDB connected successfully!');
+    console.log('MySQL connected successfully!');
     await seedAdmin();
     await seedQuestions();
     app.listen(PORT, () => {
@@ -698,10 +553,8 @@ mongoose
     });
   })
   .catch((error) => {
-    console.error('MongoDB connection failed:', error.message);
-    app.listen(PORT, () => {
-      console.log(BACKEND_URL ? `Backend running in fallback mode at ${BACKEND_URL}` : `Backend in fallback mode on port ${PORT}`);
-    });
+    console.error('MySQL startup failed:', error.message);
+    process.exit(1);
   });
 
 app.use((err, req, res, next) => {

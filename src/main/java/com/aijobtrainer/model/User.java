@@ -1,25 +1,30 @@
 package com.aijobtrainer.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-@Document(collection = "users")
+@Entity
+@Table(name = "spring_users")
 public class User {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String name;
 
-    @Indexed(unique = true)
+    @Column(unique = true)
     private String email;
 
     @JsonIgnore
@@ -30,13 +35,13 @@ public class User {
     private String branch;
     private Integer graduationYear;
     private String role; // "USER" or "ADMIN"
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private List<String> skills = new ArrayList<>();
     private String profileImage;
 
-    @CreatedDate
     private Instant createdAt = Instant.now();
 
-    @LastModifiedDate
     private Instant updatedAt = Instant.now();
 
     public User() {
